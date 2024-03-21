@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Postuler Travail</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background: linear-gradient(#141e30, #243b55); /* Gradient background */
+            color: #ffffff;
+            height: auto; /* Allow the body to expand as needed */
+            min-height: 100vh; /* Ensure it covers at least the full viewport height */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px; /* Add padding to prevent content from touching the edges */
+        }
+
+        form {
+            width: 100%;
+            max-width: 400px; /* Adjust as necessary */
+            padding: 20px;
+            background: rgba(0,0,0,.7);
+            box-shadow: 0 15px 25px rgba(0,0,0,.6);
+            border-radius: 10px;
+            margin: auto; /* Center the form vertically if shorter than viewport */
+        }
+
+        h2 {
+            margin: 0 0 20px;
+            color: #fff;
+            text-align: center;
+        }
+
+        label {
+            margin-bottom: 10px;
+            display: block;
+        }
+
+        input[type="text"],
+        input[type="email"],
+        input[type="password"],
+        input[type="file"],
+        textarea, select {
+            width: calc(100% - 20px); /* Adjust width to prevent overflow */
+            padding: 10px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+            background-color: #FFF;
+            color: #000; /* Ensure text is visible */
+            display: block;
+        }
+
+        input[type="submit"] {
+            background-color: #03e9f4;
+            color: #000;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        input[type="submit"]:hover {
+            background-color: #029dbb;
+        }
+    </style>
+    <script>
+        function validateFileSize() {
+            var fileInput = document.getElementById('pic');
+            var fileSize = fileInput.files[0].size; // Size in bytes
+            var maxSize = 500000; // Maximum file size (e.g., 500 KB)
+
+            if (fileSize > maxSize) {
+                alert("Le fichier est trop grand. La taille maximale autorisée est de 500 KB.");
+                return false;
+            }
+            return true;
+        }
+    </script>
+</head>
+<body>
+    <form action="submit_job.php" method="post" enctype="multipart/form-data" onsubmit="return validateFileSize()">
+        <h2>Postuler une offre d'emploi</h2>
+        
+        <label for="titre">Titre du poste:</label>
+        <input type="text" id="titre" name="titre" required>
+        
+        <label for="description">Description:</label>
+        <textarea id="description" name="description" required></textarea>
+        
+        <label for="city">Ville:</label>
+        <input type="text" id="city" name="city" required>
+        
+        <label for="domain">Domaine:</label>
+        <input type="text" id="domain" name="domain" required>
+        
+        <label for="level">Niveau d'étude requis:</label>
+        <select id="level" name="level" required>
+            <option value="">--Sélectionnez--</option>
+            <option value="Bac">Bac</option>
+            <option value="Bac+2">Bac+2</option>
+            <option value="Licence">Licence</option>
+            <option value="Master">Master</option>
+            <option value="Doctorat">Doctorat</option>
+        </select>
+
+        <label for="email">Email:</label>
+        <input type="email" id="email" name="email" required>
+        
+        <label for="pic">Photo du poste (obligatoire):</label>
+        <input type="file" id="pic" name="pic" accept="image/*" required>
+        
+        <input type="submit" value="Publier l'offre">
+    </form>
+</body>
+</html>

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Welcome Page</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: black;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            height: 100vh;
+        }
+        .menu {
+            text-align: center;
+            font-size: 30px;
+            color: yellow;
+            margin-top: auto;
+            padding: 20px 0;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: auto;
+        }
+        .button {
+            display: block;
+            width: 60%;
+            margin: 10px auto;
+            padding: 20px;
+            font-size: 20px;
+            text-align: center;
+            text-decoration: none;
+            color: black;
+            background-color: yellow;
+            border: none;
+            border-radius: 5px;
+            transition: background-color 0.3s, transform 0.2s;
+        }
+        .button:hover {
+            background-color: #ffd700;
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+<body>
+    <div class="menu">BIENVENUE</div>
+    <div class="container">
+        <a class="button" href="post_job.html">POSTULER TRAVAIL</a>
+        <a class="button" href="explore_candidates.php">EXPLORER LES CANDIDATURES DISPONIBLES</a>
+        <!-- Link to the page for displaying candidates for chat -->
+        <a class="button" href="display_candidates.php">BOITE DE DISCUSSION</a>
+        <hr style="width: 60%; border-color: yellow; margin-top: 20px;">
+        <a class="button" href="logout.php" style="background-color: red; color: white;">Se déconnecter</a>
+    </div>
+</body>
+</html>

@@ -1,0 +1,3118 @@
+a.php: <?php
+// Connect to MySQL
+$conn = new mysqli("localhost", "root", "", "RECRUTEMENT");
+
+// Check connection
+if ($conn->connect_error) {
+    die("Connection failed: " . $conn->connect_error);
+}
+
+// Collect and sanitize email
+$email = $conn->real_escape_string($_POST['email']);
+
+// Check if the email already exists
+$emailCheckQuery = "SELECT email FROM recruteurs WHERE email = ?";
+$stmt = $conn->prepare($emailCheckQuery);
+$stmt->bind_param("s", $email);
+$stmt->execute();
+$result = $stmt->get_result();
+if($result->num_rows > 0) {
+    // Email already exists, redirect to error page
+    header('Location: erreur_sign_up.html');
+    exit();
+}
+
+// Assume the email is not found, continue with the insertion
+$first_name = $conn->real_escape_string($_POST['first_name']);
+$last_name = $conn->real_escape_string($_POST['last_name']);
+$phone = $conn->real_escape_string($_POST['phone']);
+$country = $conn->real_escape_string($_POST['country']);
+$city = $conn->real_escape_string($_POST['city']);
+$diploma = $conn->real_escape_string($_POST['diploma']);ring($_POST['mdp']);
+
+
+// Prepare an insert statement
+$sql = $conn->prepare("INSERT INTO candidates (first_name, last_name, phone, email, country,  mdp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+
+// Bind variables to the prepared statement as parameters
+$sql->bind_param("sssssssissss", $first_name, $last_name, $phone, $email, $country, $city,  $mdp);
+
+// Attempt to execute the prepared statement
+if($sql->execute()) {
+    // Upload image
+    $target_dir = "uploads/";
+    $target_file = $target_dir . basename($_FILES["image"]["name"]);
+    if(move_uploaded_file($_FILES["image"]["tmp_name"], $target_file)) {
+        // Redirect to success page after successful record creation and file upload
+        header('Location: succes_sign_up.html');
+    } else {
+        // File upload failed but record was created, handle accordingly
+        header('Location: erreur_sign_up.html');
+    }
+} else {
+    // Redirect to error page if record creation failed
+    header('Location: erreur_sign_up.html');
+}
+
+// Close statement and connection
+$stmt->close();
+$sql->close();
+$conn->close();
+exit();
+?>
+
+apply_to_job.php: <?php
+session_start();
+
+$pdo = new PDO('mysql:host=localhost;dbname=RECRUTEMENT', 'root', '');
+$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+// Fetch the candidate's email from 'temporary_candidats'
+$stmt = $pdo->query("SELECT email FROM temporary_candidats LIMIT 1");
+$candidateEmail = $stmt->fetchColumn();
+
+if (empty($candidateEmail)) {
+    echo "Candidate email not found.";
+    exit;
+}
+
+$jobId = $_POST['job_id'] ?? null;
+if (!$jobId) {
+    echo "Job ID not specified.";
+    exit;
+}
+
+$stmt = $pdo->prepare("SELECT email_recruteur FROM emplois WHERE id = ?");
+$stmt->execute([$jobId]);
+$recruteurEmail = $stmt->fetchColumn();
+
+if (!$recruteurEmail) {
+    echo "Recruiter email not found for the specified job.";
+    exit;
+}
+
+$insertStmt = $pdo->prepare("INSERT INTO candidatures (candidat, recruteur) VALUES (?, ?)");
+
+try {
+    $insertStmt->execute([$candidateEmail, $recruteurEmail]);
+    $message = "Candidature ajoutée avec succès.";
+} catch (PDOException $e) {
+    if ($e->getCode() == 23000) {
+        $message = "Vous avez déjà envoyé cette candidature à ce recruteur.";
+    } else {
+        $message = "Une erreur s'est produite.";
+    }
+}
+
+echo "<!DOCTYPE html>
+<html lang='fr'>
+<head>
+    <meta charset='UTF-8'>
+    <title>Statut de la candidature</title>
+    <style>
+        body { font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .message-box { text-align: center; }
+        .message { font-size: 20px; margin-bottom: 20px; }
+        .button { background-color: #4CAF50; color: white; padding: 10px 20px; text-align: center; display: inline-block; font-size: 16px; margin: 4px 2px; cursor: pointer; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class='message-box'>
+        <p class='message'>$message</p>
+        <a href='view_jobs.php' class='button'>Retour</a>
+    </div>
+</body>
+</html>";
+?>
+
+BASE DE DONNE PHPMYDAMIN.sql: -- phpMyAdmin SQL Dump
+-- version 5.2.1
+-- https://www.phpmyadmin.net/
+--
+-- Host: 127.0.0.1
+-- Generation Time: Mar 10, 2024 at 06:51 PM
+-- Server version: 10.4.32-MariaDB
+-- PHP Version: 8.2.12
+
+SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
+START TRANSACTION;
+SET time_zone = "+00:00";
+
+
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8mb4 */;
+
+--
+-- Database: `recrutement`
+--
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `candidates`
+--
+
+CREATE TABLE `candidates` (
+  `id` int(11) NOT NULL,
+  `first_name` varchar(255) DEFAULT NULL,
+  `last_name` varchar(50) DEFAULT NULL,
+  `phone` varchar(20) DEFAULT NULL,
+  `email` varchar(100) DEFAULT NULL,
+  `country` varchar(50) DEFAULT NULL,
+  `city` varchar(50) DEFAULT NULL,
+  `diploma` varchar(100) DEFAULT NULL,
+  `institution` varchar(100) DEFAULT NULL,
+  `experience` int(11) DEFAULT NULL,
+  `domaine` varchar(100) DEFAULT NULL,
+  `image_path` varchar(255) DEFAULT NULL,
+  `mdp` varchar(255) DEFAULT NULL,
+  `description` varchar(700) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `candidates`
+--
+
+INSERT INTO `candidates` (`id`, `first_name`, `last_name`, `phone`, `email`, `country`, `city`, `diploma`, `institution`, `experience`, `domaine`, `image_path`, `mdp`, `description`) VALUES
+(1, 'asihaioh', 'iohasoihaoi', 'ioshaios', 'diosa@gmail.com', 'OIHSOA', 'OISHOI', 'Bac', '0', 21, 'Dihihs', 'uploads/alexander-leading-a-tremendous-army-ntq2stu2twmr6hrn.jpg', 'diosa', 'oisihaoihso');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `candidatures`
+--
+
+CREATE TABLE `candidatures` (
+  `candidat` varchar(255) DEFAULT NULL,
+  `recruteur` varchar(255) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `candidatures`
+--
+
+INSERT INTO `candidatures` (`candidat`, `recruteur`) VALUES
+('diosa@gmail.com', 'idriss@gmail.com');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `emplois`
+--
+
+CREATE TABLE `emplois` (
+  `id` int(11) NOT NULL,
+  `domain` varchar(255) DEFAULT NULL,
+  `city` varchar(255) DEFAULT NULL,
+  `level` varchar(255) DEFAULT NULL,
+  `pic` varchar(255) DEFAULT NULL,
+  `titre` varchar(255) DEFAULT NULL,
+  `description` text DEFAULT NULL,
+  `email_recruteur` varchar(255) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `emplois`
+--
+
+INSERT INTO `emplois` (`id`, `domain`, `city`, `level`, `pic`, `titre`, `description`, `email_recruteur`) VALUES
+(1, 'informatique', 'Casablanca', 'deust', 'pic', 'emploi 1', 'description 1', NULL),
+(2, 'ihsi', 'hihih', 'hi', 'ihihi', 'EMPLOI 2', 'DES 2', NULL),
+(3, 'ih', 'ohio', 'oihoih', 'hih', 'oihoih', 'iohioh', NULL),
+(4, 'ih', 'ohio', 'oihoih', 'hih', 'oihoih', 'iohioh', NULL),
+(5, 'ih', 'ohio', 'oihoih', 'hih', 'oihoih', 'iohioh', NULL),
+(6, 'ih', 'ohio', 'oihoih', 'hih', 'oihoih', 'iohioh', NULL),
+(7, 'ih', 'ohio', 'oihoih', 'hih', 'oihoih', 'iohioh', NULL),
+(8, 'ih', 'ohio', 'oihoih', 'hih', 'oihoih', 'iohioh', NULL),
+(9, 'ih', 'ohio', 'oihoih', 'hih', 'oihoih', 'iohioh', NULL),
+(10, 'ih', 'ohio', 'oihoih', 'hih', 'oihoih', 'iohioh', NULL),
+(11, 'ih', 'ohio', 'oihoih', 'hih', 'oihoih', 'iohioh', NULL);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `etat`
+--
+
+CREATE TABLE `etat` (
+  `candidat` int(11) DEFAULT NULL,
+  `recruteur` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `messages`
+--
+
+CREATE TABLE `messages` (
+  `sender_mail` varchar(255) NOT NULL,
+  `id` int(11) NOT NULL,
+  `receiver_email` varchar(255) DEFAULT NULL,
+  `message` text DEFAULT NULL,
+  `timestamp` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `recruteurs`
+--
+
+CREATE TABLE `recruteurs` (
+  `first_name` varchar(255) NOT NULL,
+  `last_name` varchar(255) NOT NULL,
+  `phone` varchar(255) NOT NULL,
+  `email` varchar(255) NOT NULL,
+  `country` varchar(255) NOT NULL,
+  `city` varchar(255) NOT NULL,
+  `mdp` varchar(255) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `temporary_candidats`
+--
+
+CREATE TABLE `temporary_candidats` (
+  `id` int(11) NOT NULL,
+  `first_name` varchar(50) NOT NULL,
+  `last_name` varchar(50) NOT NULL,
+  `phone` varchar(20) DEFAULT NULL,
+  `email` varchar(100) NOT NULL,
+  `country` varchar(50) DEFAULT NULL,
+  `city` varchar(50) DEFAULT NULL,
+  `mdp` varchar(255) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `temporary_candidats`
+--
+
+INSERT INTO `temporary_candidats` (`id`, `first_name`, `last_name`, `phone`, `email`, `country`, `city`, `mdp`) VALUES
+(2, 'asihaioh', 'iohasoihaoi', 'ioshaios', 'diosa@gmail.com', 'OIHSOA', 'OISHOI', 'diosa');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `temporary_recruters`
+--
+
+CREATE TABLE `temporary_recruters` (
+  `id` int(11) NOT NULL,
+  `first_name` varchar(50) NOT NULL,
+  `last_name` varchar(50) NOT NULL,
+  `phone` varchar(20) DEFAULT NULL,
+  `email` varchar(100) NOT NULL,
+  `country` varchar(50) DEFAULT NULL,
+  `city` varchar(50) DEFAULT NULL,
+  `mdp` varchar(255) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Indexes for dumped tables
+--
+
+--
+-- Indexes for table `candidates`
+--
+ALTER TABLE `candidates`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `unique_email` (`email`);
+
+--
+-- Indexes for table `emplois`
+--
+ALTER TABLE `emplois`
+  ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `messages`
+--
+ALTER TABLE `messages`
+  ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `recruteurs`
+--
+ALTER TABLE `recruteurs`
+  ADD UNIQUE KEY `unique_email` (`email`);
+
+--
+-- Indexes for table `temporary_candidats`
+--
+ALTER TABLE `temporary_candidats`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `email` (`email`);
+
+--
+-- Indexes for table `temporary_recruters`
+--
+ALTER TABLE `temporary_recruters`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `email` (`email`);
+
+--
+-- AUTO_INCREMENT for dumped tables
+--
+
+--
+-- AUTO_INCREMENT for table `candidates`
+--
+ALTER TABLE `candidates`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+
+--
+-- AUTO_INCREMENT for table `emplois`
+--
+ALTER TABLE `emplois`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=12;
+
+--
+-- AUTO_INCREMENT for table `messages`
+--
+ALTER TABLE `messages`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `temporary_candidats`
+--
+ALTER TABLE `temporary_candidats`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+
+--
+-- AUTO_INCREMENT for table `temporary_recruters`
+--
+ALTER TABLE `temporary_recruters`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+COMMIT;
+
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+
+chat.html: 
+db.php: <?php
+$servername = "localhost"; // or your server's hostname
+$username = "root"; // your database username
+$password = ""; // your database password
+$dbname = "RECRUTEMENT"; // your database name
+
+// Create connection
+$conn = new mysqli($servername, $username, $password, $dbname);
+
+// Check connection
+if ($conn->connect_error) {
+    die("Connection failed: " . $conn->connect_error);
+}
+?>
+
+display_candidates.php: <?php
+// Connection to the database
+$conn = new mysqli("localhost", "root", "", "RECRUTEMENT");
+if ($conn->connect_error) {
+    die("Connection failed: " . $conn->connect_error);
+}
+
+// Fetch the recruiter's email from temporary_recruters
+$emailQuery = "SELECT email FROM temporary_recruters ORDER BY id DESC LIMIT 1";
+$emailResult = $conn->query($emailQuery);
+$recruiterEmail = $emailResult->fetch_assoc()['email'];
+
+// Fetch candidates
+$query = "SELECT DISTINCT CASE WHEN sender_mail = ? THEN receiver_email ELSE sender_mail END AS candidate_email 
+          FROM messages 
+          WHERE sender_mail = ? OR receiver_email = ?";
+$stmt = $conn->prepare($query);
+$stmt->bind_param("sss", $recruiterEmail, $recruiterEmail, $recruiterEmail);
+$stmt->execute();
+$result = $stmt->get_result();
+?>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Candidate List</title>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        background-color: #f4f4f4;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+    .candidate-item {
+        background-color: #007bff;
+        color: white;
+        margin: 5px 0;
+        padding: 10px 15px;
+        border-radius: 5px;
+        text-align: center;
+        cursor: pointer;
+        border: none;
+        transition: background-color 0.3s;
+        width: 100%;
+        max-width: 300px;
+    }
+    .candidate-item:hover {
+        background-color: #0056b3;
+    }
+    a {
+        text-decoration: none;
+    }
+</style>
+</head>
+<body>
+
+<h2>Candidates</h2>
+<div class="candidates-container">
+    <?php
+    while ($row = $result->fetch_assoc()) {
+        $candidateEmail = htmlspecialchars($row['candidate_email']);
+        echo "<a href='display_conversation.php?candidate_email={$candidateEmail}&recruiter_email={$recruiterEmail}' style='text-decoration:none;'>";
+        echo "<div class='candidate-item'>" . $candidateEmail . "</div>";
+        echo "</a>";
+    }
+    ?>
+</div>
+
+</body>
+</html>
+
+display_candidate_conversation.php: <?php
+// Connection to the database
+$conn = new mysqli("localhost", "root", "", "RECRUTEMENT");
+if ($conn->connect_error) {
+    die("Connection failed: " . $conn->connect_error);
+}
+
+// Get recruiter and candidate email from the URL parameter
+$recruiterEmail = $_GET['recruiter_email'] ?? '';
+$candidateEmail = $_GET['candidate_email'] ?? '';
+
+// Fetch messages
+$query = "SELECT * FROM messages WHERE 
+          (sender_mail = ? AND receiver_email = ?) OR 
+          (sender_mail = ? AND receiver_email = ?) 
+          ORDER BY timestamp ASC";
+$stmt = $conn->prepare($query);
+$stmt->bind_param("ssss", $recruiterEmail, $candidateEmail, $candidateEmail, $recruiterEmail);
+$stmt->execute();
+$result = $stmt->get_result();
+?>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Conversation</title>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        background-color: #f4f4f4;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+    .message {
+        background-color: #e7e7e7;
+        margin: 5px 0;
+        padding: 10px 15px;
+        border-radius: 20px;
+        width: fit-content;
+        max-width: 80%;
+        border: none;
+        box-shadow: 0 1px 1px rgba(0,0,0,0.1);
+    }
+    .sender {
+        font-weight: bold;
+    }
+    .content {
+        margin-top: 5px;
+    }
+    .message.candidate {
+        background-color: #007bff;
+        color: white;
+        align-self: flex-end;
+    }
+</style>
+</head>
+<body>
+
+<h2>Conversation with <?= htmlspecialchars($recruiterEmail); ?></h2>
+<div class="messages-container">
+    <?php
+    while ($row = $result->fetch_assoc()) {
+        $class = $row['sender_mail'] === $candidateEmail ? 'candidate' : '';
+        echo "<div class='message $class'><span class='sender'>" . htmlspecialchars($row['sender_mail']) . ":</span><div class='content'>" . htmlspecialchars($row['message']) . "</div></div>";
+    }
+    ?>
+</div>
+
+</body>
+</html>
+
+display_conversation.php: <?php
+if (!isset($_GET['recruiter_email']) || !isset($_GET['candidate_email'])) {
+    echo "Required parameters not provided.";
+    exit;
+}
+
+$recruiterEmail = $_GET['recruiter_email'];
+$candidateEmail = $_GET['candidate_email'];
+
+// Database connection
+$conn = new mysqli("localhost", "root", "", "RECRUTEMENT");
+if ($conn->connect_error) {
+    die("Connection failed: " . $conn->connect_error);
+}
+
+$query = "SELECT * FROM messages WHERE (sender_mail = ? AND receiver_email = ?) OR (sender_mail = ? AND receiver_email = ?) ORDER BY timestamp ASC";
+$stmt = $conn->prepare($query);
+$stmt->bind_param("ssss", $candidateEmail, $recruiterEmail, $recruiterEmail, $candidateEmail);
+$stmt->execute();
+$result = $stmt->get_result();
+?>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Conversation</title>
+</head>
+<body>
+
+<h2>Conversation with <?= htmlspecialchars($recruiterEmail) ?></h2>
+<div class="messages-container">
+    <?php while ($message = $result->fetch_assoc()): ?>
+        <div>
+            <strong><?= htmlspecialchars($message['sender_mail']) ?>:</strong>
+            <?= htmlspecialchars($message['message']) ?><br>
+            <em><?= $message['timestamp'] ?></em>
+        </div>
+    <?php endwhile; ?>
+</div>
+
+</body>
+</html>
+<?php $conn->close(); ?>
+
+display_recruiters.php: <?php
+// Database connection
+$conn = new mysqli("localhost", "root", "", "RECRUTEMENT");
+if ($conn->connect_error) {
+    die("Connection failed: " . $conn->connect_error);
+}
+
+// Fetching the candidate's email from temporary_candidats
+$emailQuery = "SELECT email FROM temporary_candidats ORDER BY id DESC LIMIT 1";
+$emailResult = $conn->query($emailQuery);
+if ($emailResult->num_rows > 0) {
+    $emailRow = $emailResult->fetch_assoc();
+    $candidateEmail = $emailRow['email'];
+} else {
+    echo "Candidate email not found.";
+    exit;
+}
+
+// Now, use $candidateEmail to fetch the list of recruiters
+$query = "SELECT DISTINCT receiver_email FROM messages WHERE sender_mail = ? UNION DISTINCT SELECT sender_mail FROM messages WHERE receiver_email = ?";
+$stmt = $conn->prepare($query);
+$stmt->bind_param("ss", $candidateEmail, $candidateEmail);
+$stmt->execute();
+$result = $stmt->get_result();
+?>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recruiters List</title>
+</head>
+<body>
+
+<h2>Recruiters</h2>
+<div class="recruiters-container">
+    <?php while ($row = $result->fetch_assoc()): ?>
+        <?php $recruiterEmail = $row['receiver_email']; // Or sender_mail based on your logic ?>
+        <a href="display_conversation.php?recruiter_email=<?= urlencode($recruiterEmail) ?>&candidate_email=<?= urlencode($candidateEmail) ?>">
+            <?= htmlspecialchars($recruiterEmail) ?>
+        </a><br>
+    <?php endwhile; ?>
+</div>
+
+</body>
+</html>
+<?php $conn->close(); ?>
+
+erreur_login.html: <!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Une Erreur est survenue</title>
+<link rel="stylesheet" href="gg.css">
+</head>
+<body>
+  <div class="error-container">
+    <h1>Erreur</h1>
+    <p>Une erreur est survenue lors de votre essai de connexion</p>
+  
+    <p>Veuillez ressayer </p>
+    <a href="index.html">Retourner à la page d'accueil</a>
+  </div>
+</body>
+</html>
+erreur_sign_up.html: <!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Une Erreur est survenue</title>
+<link rel="stylesheet" href="gg.css">
+</head>
+<body>
+  <div class="error-container">
+    <h1>Erreur</h1>
+    <p>Une erreur est survenue lors de votre essai d\'inscription</p>
+    <p>Causes d'erreur possibles :</p>
+    <ul>
+      <li>Soit un autre compte avec le même email existe d&eacute;j&abreve;</li>
+      <li>Soit un autre probl&egrave;me est survenu</li>
+    </ul>
+    <p>Veuillez ressayer </p>
+    <a href="index.html">Retourner à la page d'accueil</a>
+  </div>
+</body>
+</html>
+exec.py: import os
+
+# Get the current working directory
+directory_path = os.getcwd()
+output_file_path = os.path.join(directory_path, 'combined_output.txt')
+
+# Open the output file in write mode
+with open(output_file_path, 'w') as output_file:
+    # Iterate over all files in the directory
+    for filename in os.listdir(directory_path):
+        # Construct the full file path
+        file_path = os.path.join(directory_path, filename)
+        # Check if it's a file (and not a directory or the output file itself)
+        if os.path.isfile(file_path) and filename != 'combined_output.txt':
+            # Open and read the content of the file
+            with open(file_path, 'r') as file:
+                content = file.read()
+                # Write the file name and its content to the output file
+                output_file.write(f"{filename}: {content}\n")
+
+print(f"Combined file has been created at {output_file_path}")
+
+explore_candidates.php: <?php
+// Connect to the database
+$conn = new mysqli("localhost", "root", "", "RECRUTEMENT");
+if ($conn->connect_error) {
+    die("Connection failed: " . $conn->connect_error);
+}
+
+$country = isset($_POST['country']) ? $conn->real_escape_string($_POST['country']) : '';
+$city = isset($_POST['city']) ? $conn->real_escape_string($_POST['city']) : '';
+$level = isset($_POST['level']) ? $conn->real_escape_string($_POST['level']) : '';
+$domain = isset($_POST['domain']) ? $conn->real_escape_string($_POST['domain']) : '';
+
+$query = "SELECT * FROM candidates WHERE (country LIKE '%$country%' OR ? = '') AND (city LIKE '%$city%' OR ? = '') AND (diploma LIKE '%$level%' OR ? = '') AND (domaine LIKE '%$domain%' OR ? = '')";
+$stmt = $conn->prepare($query);
+$stmt->bind_param("ssss", $country, $city, $level, $domain);
+$stmt->execute();
+$result = $stmt->get_result();
+?>
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>CHERCHER CANDIDATS</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            padding: 20px;
+            margin: 20px auto;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            max-width: 800px;
+        }
+        h2 {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .filter-form {
+            display: flex;
+            justify-content: space-between;
+            padding: 15px;
+            background: #e9ecef;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .filter-form > * {
+            margin: 5px;
+            flex-grow: 1;
+            min-width: 120px;
+        }
+        input[type="text"], input[type="submit"] {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            width: 100%;
+        }
+        input[type="submit"] {
+            cursor: pointer;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            width: auto;
+        }
+        input[type="submit"]:hover {
+            background-color: #218838;
+        }
+        .candidate {
+            background-color: #fff;
+            border: 1px solid #ddd;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+        }
+        .candidate img {
+            margin-right: 20px;
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+        }
+        .candidate-details {
+            flex-grow: 1;
+        }
+        .btn {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+        }
+        .btn:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <h2>CHERCHER CANDIDATS</h2>
+    <form class="filter-form" action="explore_candidates.php" method="post">
+        <input type="text" id="country" name="country" placeholder="Pays" value="<?= htmlspecialchars($country) ?>">
+        <input type="text" id="city" name="city" placeholder="Ville" value="<?= htmlspecialchars($city) ?>">
+        <input type="text" id="level" name="level" placeholder="Niveau d'étude" value="<?= htmlspecialchars($level) ?>">
+        <input type="text" id="domain" name="domain" placeholder="Domaine" value="<?= htmlspecialchars($domain) ?>">
+        <input type="submit" value="Filtrer">
+    </form>
+
+    <?php if ($result->num_rows > 0): ?>
+        <?php while($row = $result->fetch_assoc()): ?>
+            <div class="candidate">
+                <img src="<?= htmlspecialchars($row["image_path"]) ?>" alt="Image du Candidat">
+                <div class="candidate-details">
+                    <strong>Nom:</strong> <?= htmlspecialchars($row["first_name"]) . ' ' . htmlspecialchars($row["last_name"]) ?><br>
+                    <strong>Email:</strong> <?= htmlspecialchars($row["email"]) ?><br>
+                    <strong>Téléphone:</strong> <?= htmlspecialchars($row["phone"]) ?><br>
+                    <strong>Pays:</strong> <?= htmlspecialchars($row["country"]) ?><br>
+                    <strong>Ville:</strong> <?= htmlspecialchars($row["city"]) ?><br>
+                    <strong>Niveau d'étude:</strong> <?= htmlspecialchars($row["diploma"]) ?><br>
+                    <strong>Domaine:</strong> <?= htmlspecialchars($row["domaine"]) ?><br>
+                </div>
+                <a href="send_message_by_recruiter.php?candidate_email=<?= urlencode($row["email"]) ?>" class="btn">Chatter</a>
+            </div>
+        <?php endwhile; ?>
+    <?php else: ?>
+        <p>Aucun candidat correspondant trouvé.</p>
+    <?php endif; ?>
+    <?php $conn->close(); ?>
+</body>
+</html>
+
+fetch_data.php: <?php
+// Database connection parameters
+$servername = "localhost";
+$username = "root"; // Update with your MySQL username
+$password = ""; // Update with your MySQL password
+$dbname = "RECRUTEMENT";
+
+// Create connection
+$conn = new mysqli($servername, $username, $password, $dbname);
+
+// Check connection
+if ($conn->connect_error) {
+    die("Connection failed: " . $conn->connect_error);
+}
+
+$domain = isset($_POST['domaine']) ? $_POST['domaine'] : '';
+$city = isset($_POST['ville']) ? $_POST['ville'] : '';
+$level = isset($_POST['niveau_etude']) ? $_POST['niveau_etude'] : '';
+
+// Prepare the SQL query based on filters, if any
+$query = "SELECT * FROM emplois WHERE ('' = ? OR domain = ?) AND ('' = ? OR city = ?) AND ('' = ? OR level = ?)";
+$stmt = $conn->prepare($query);
+$stmt->bind_param("ssssss", $domain, $domain, $city, $city, $level, $level);
+$stmt->execute();
+$result = $stmt->get_result();
+
+$emplois = [];
+
+while($row = $result->fetch_assoc()) {
+    $emplois[] = $row;
+}
+
+$stmt->close();
+$conn->close();
+?>
+
+get_cv_data.php: <?php
+$servername = "localhost";
+$username = "your_username";
+$password = "your_password";
+$dbname = "cv_database";
+
+// Connexion à la base de données
+$conn = new mysqli($servername, $username, $password, $dbname);
+
+// Vérification de la connexion
+if ($conn->connect_error) {
+    die("Connection failed: " . $conn->connect_error);
+}
+
+// Récupération des données des CVs
+$sql = "SELECT * FROM cv ORDER BY score ASC";
+$result = $conn->query($sql);
+
+// Fermer la connexion à la base de données
+$conn->close();
+
+// Stocker les données dans un tableau
+$cv_data = [];
+if ($result->num_rows > 0) {
+    while($row = $result->fetch_assoc()) {
+        $cv_data[] = $row;
+    }
+}
+
+// Envoyer les données au fichier HTML
+echo json_encode($cv_data);
+?>
+gg.css: body {
+    font-family: Arial, sans-serif;
+    background-color: #f4f4f4;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+  }
+  
+  .error-container {
+    background-color: #fff;
+    padding: 30px;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    text-align: center;
+  }
+  
+  h1 {
+    font-size: 36px;
+    color: #333;
+    margin-bottom: 20px;
+  }
+  
+  p {
+    font-size: 18px;
+    color: #666;
+    margin-bottom: 30px;
+  }
+  
+  a {
+    text-decoration: none;
+    color: #007bff;
+    font-weight: bold;
+  }
+  
+  a:hover {
+    text-decoration: underline;
+  }
+
+  body {
+    display: flex;
+    justify-content: center; /* Alignement horizontal au centre */
+    align-items: center; /* Alignement vertical au centre */
+    height: 100vh; /* Hauteur de la fenêtre visible */
+    margin: 0; /* Supprime les marges par défaut */
+    padding: 0; /* Supprime le rembourrage par défaut */
+    font-family: Arial, sans-serif; /* Police de caractères par défaut */
+    background-color:black; /* Couleur de fond */
+  }
+index.html: <!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recrutement en ligne</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootswatch/4.5.2/slate/bootstrap.min.css" rel="stylesheet">
+    <link href="styles_index.css" rel="stylesheet">
+</head>
+
+
+
+
+<body> 
+    <div class="container-fluid">
+        <div class="row">
+            <nav class="col-md-2 d-none d-md-block bg-dark sidebar">
+                <div class="sidebar-sticky">
+                    <ul class="nav flex-column">
+                       
+                        <li class="nav-item">
+                            <a class="nav-link" href="login.html">
+                                Se Connecter
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="sign_up_recruteur.html">
+                                Nouveau compte en tant que RECRUTEUR
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="sign_up_candidat.html">
+                                Nouveau compte en tant que CANDIDAT
+                            </a>
+                        </li>
+                     
+                    </ul>
+                </div>
+            </nav>
+
+            <main role="main" class="col-md-9 ml-sm-auto col-lg-10 px-4">
+                <header>
+                    <h1 style="color:red">Recrutement en ligne</h1>
+                </header>
+                <section>
+                    
+                    <h2 style="color:black">Bienvenue sur notre plateforme de recrutement en ligne</h2>
+                    <p style="color:black">Notre plateforme permet aux recruteurs de trouver des candidats qualifiés et aux candidats de publier leurs CVs pour trouver des opportunités professionnelles.</p>
+                    <p  style="color:black">Ce site va vous permettre de recruter les meilleurs condidats, le site va vous donner une façon avancée pour avoir la liste des meilleurs condidats, le site trie automatiquement les candidats en fonction de plusieurs paramètres significatifs.<br>
+                    En tant que condidats, vous avez la possibilité de postuler votre CV pour que les recruteursz vous embauchent, il existe aussi des façons automatiques pour détécter vos compétences sur votre CV.
+		   Il est aussi possible, sur ce site, d'extraire vos informations sur votre CV, par notre programme automatisé.
+		   En fait, il est même possible de créer votre CV juste en tapant vos informations de base.
+
+                  Entrer un CV bien structuré et percutant est essentiel pour maximiser ses chances de décrocher un entretien et de se démarquer des autres candidats. Voici quelques conseils pour vous aider à créer un CV efficace :
+
+<br>1. Commencez par vos informations personnelles : incluez votre nom, votre adresse, votre numéro de téléphone et votre adresse e-mail professionnelle. Assurez-vous que ces informations soient claires et faciles à trouver en en-tête du CV.<br>
+
+2. Rédigez un résumé ou une introduction convaincante : écrivez un court paragraphe qui met en avant vos compétences, votre expérience et vos qualifications. Ce résumé doit donner une idée claire de qui vous êtes et de ce que vous pouvez apporter à l'entreprise.<br>
+
+3. Mettez en avant vos compétences : créez une section dédiée à vos compétences clés. Mentionnez celles qui correspondent le mieux au poste pour lequel vous postulez, en utilisant des mots-clés pertinents. Vous pouvez également les classer en fonction de leur niveau de maîtrise.<br>
+
+4. Présentez votre expérience professionnelle : listez vos emplois précédents, stages ou projets pertinents en commençant par le plus récent. Pour chaque poste, détaillez vos responsabilités, vos réalisations et les compétences que vous avez développées.<br>
+
+5. Mettez l'accent sur les résultats : utilisez des exemples concrets pour illustrer vos réalisations professionnelles. Présentez des chiffres, des statistiques, ou des résultats tangibles obtenus grâce à votre travail, cela permettra de prouver votre efficacité.<br>
+
+6. Incluez votre formation et vos diplômes : indiquez votre niveau d'études, le nom des institutions fréquentées et les diplômes obtenus. Si vous avez suivi des formations ou des cours spécifiques en rapport avec le poste, n'hésitez pas à les mentionner.<br>
+
+7. Mentionnez vos compétences linguistiques et informatiques : si vous parlez plusieurs langues ou si vous maîtrisez des logiciels spécifiques, ajoutez-les dans une section dédiée. Cela peut être un atout indéniable pour certains postes.<br>
+
+8. Soyez concis et utilisez un langage clair : évitez les phrases trop longues et préférez des bullet points pour décrire vos expériences. Utilisez un vocabulaire professionnel et évitez les termes trop techniques ou trop génériques.<br>
+
+9. Soignez la présentation : choisissez une mise en page professionnelle, claire et facile à lire. Utilisez des polices de caractères classiques et évitez les couleurs ou les mises en page trop chargées. Veillez également à ce que votre CV soit exempt de fautes d'orthographe.<br>
+
+10. Personnalisez votre CV en fonction du poste : adaptez votre CV pour chaque candidature en mettant en avant les compétences et l'expérience les plus pertinentes. Mettez l'accent sur ce qui est demandé<br>
+
+
+
+</p>
+              
+  </section>
+            </main>
+        </div>
+    </div>
+    <footer class="footer">
+        <div class="container">
+            <p class="text-muted">&copy; 2023</p>
+        </div>
+    </footer>
+</body>
+</html>
+
+initiate_chat.php: <!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Initiate Chat</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f4f7f6;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        form {
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 400px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #333333;
+        }
+
+        textarea {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 20px;
+            border: 1px solid #dddddd;
+            border-radius: 4px;
+            height: 100px;
+            resize: none;
+        }
+
+        input[type="submit"] {  
+            background-color: #007bff;
+            color: #ffffff;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        input[type="submit"]:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <form action="save_message.php" method="post">
+        <input type="hidden" name="recruiter_email" value="<?= htmlspecialchars($recruiterEmail) ?>">
+        <label for="message">Your Message:</label>
+        <textarea id="message" name="message" required></textarea>
+        <input type="submit" value="Send Message">
+    </form>
+</body>
+</html>
+
+js_recruter.js: fetch('get_cv_data.php')
+    .then(response => response.json())
+    .then(data => {
+        // Trier les CVs par score
+        data.sort((a, b) => a.score - b.score);
+
+        // Afficher les CVs triés
+        const cvList = document.getElementById('cv-list');
+        data.forEach(cv => {
+            const cvItem = document.createElement('div');
+            cvItem.classList.add('cv-item');
+            cvItem.innerHTML = `
+                <h2>${cv.nom}</h2>
+                <p>Score : ${cv.score}</p>
+                <p>Compétences : ${cv.competences}</p>
+            `;
+            cvList.appendChild(cvItem);
+        });
+    })
+    .catch(error => console.error('Error:', error));
+Assurez-vous d'avoir les fichiers HTML, CSS et JavaScript dans le même répertoire. Vous devrez également créer une base de données MySQL et ajouter des données aux CVs en utilisant un gestionnaire de bases de données ou un outil comme phpMyAdmin. Vous devrez également créer un fichier PHP (get_cv_da
+login.html: <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login Page</title>
+    <style>
+        html {
+          height: 100%;
+        }
+        body {
+          margin:0;
+          padding:0;
+          font-family: sans-serif;
+          background: linear-gradient(#141e30, #243b55);
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          height: 100vh;
+        }
+
+        .login-box {
+          width: 400px;
+          padding: 40px;
+          background: rgba(0,0,0,.5);
+          box-sizing: border-box;
+          box-shadow: 0 15px 25px rgba(0,0,0,.6);
+          border-radius: 10px;
+        }
+
+        .login-box h2 {
+          margin: 0 0 20px;
+          color: #fff;
+          text-align: center;
+        }
+
+        .login-box input[type="email"],
+        .login-box input[type="password"],
+        .login-box select {
+          width: 100%;
+          padding: 10px;
+          margin-bottom: 10px;
+          border: none;
+          border-bottom: 1px solid #fff;
+          background: transparent;
+          color: #fff;
+          outline: none;
+        }
+
+        .login-box button[type="submit"] {
+          display: block;
+          width: 100%;
+          padding: 10px 0;
+          margin-top: 20px;
+          background: #03e9f4;
+          border: none;
+          color: #fff;
+          cursor: pointer;
+          transition: background 0.5s ease-in-out;
+        }
+
+        .login-box button[type="submit"]:hover {
+          background: #029dbb;
+        }
+        
+        /* Ensure the select text is always visible */
+        .login-box select {
+          -webkit-appearance: none; /* Remove style for WebKit browsers */
+          -moz-appearance: none; /* Remove style for Mozilla browsers */
+          appearance: none; /* Remove default arrow for IE */
+          background: transparent; /* To keep the background consistent */
+          cursor: pointer; /* To indicate it's selectable */
+        }
+    </style>
+</head>
+<body>
+    <div class="login-box">
+        <h2>Login</h2>
+        <form action="login.php" method="post">
+            <label for="email">Email:</label>
+            <input type="email" id="email" name="email" placeholder="Enter your email" required>
+            
+            <label for="password">Password:</label>
+            <input type="password" id="password" name="password" placeholder="Enter your password" required>
+            
+            <label for="role">Login as:</label>
+            <select id="role" name="role">
+                <option value="candidat">Candidate</option>
+                <option value="recruteur">Recruiter</option>
+            </select>
+            
+            <!-- Placeholder for CAPTCHA integration (e.g., Google reCAPTCHA) -->
+            <!-- Include the CAPTCHA integration script here and adjust according to the service documentation -->
+            <div id="captcha"></div>
+            
+            <button type="submit">Login</button>
+        </form>
+    </div>
+
+</body>
+</html>
+
+login.php: <?php
+session_start();
+$conn = new mysqli("localhost", "root", "", "RECRUTEMENT");
+
+if ($conn->connect_error) {
+    die("Connection failed: " . $conn->connect_error);
+}
+
+$email = $conn->real_escape_string($_POST['email']);
+$password = $conn->real_escape_string($_POST['password']); // Assuming 'mdp' is the password field
+$role = $_POST['role'];
+
+if ($role == 'candidat') {
+    $query = $conn->prepare("SELECT * FROM candidates WHERE email = ? AND mdp = ?");
+    $redirectPage = 'MENU_CANDIDAT.html';
+    // Corrected the table name from 'candidat_temporaire' to 'temporary_candidats'
+    $tempTableQuery = "INSERT INTO temporary_candidats (first_name, last_name, phone, email, country, city, mdp) 
+                       SELECT first_name, last_name, phone, email, country, city, mdp 
+                       FROM candidates WHERE email = ?";
+} else { // For recruteur
+    $query = $conn->prepare("SELECT * FROM recruteurs WHERE email = ? AND mdp = ?");
+    $redirectPage = 'MENU_RECRUTEUR.html';
+    // This query is correct; assumes 'temporary_recruters' exists
+    $tempTableQuery = "INSERT INTO temporary_recruters (first_name, last_name, phone, email, country, city, mdp) 
+                       SELECT first_name, last_name, phone, email, country, city, mdp 
+                       FROM recruteurs WHERE email = ?";
+}
+
+$query->bind_param("ss", $email, $password);
+$query->execute();
+$result = $query->get_result();
+
+if ($result->num_rows > 0) {
+    $user = $result->fetch_assoc();
+    $_SESSION['user'] = $user; // Storing user data in session
+    
+    // Prepare the temporary table insert query based on the role
+    $tempQuery = $conn->prepare($tempTableQuery);
+    $tempQuery->bind_param("s", $email);
+    $tempQuery->execute();
+
+    header("Location: $redirectPage");
+} else {
+    header('Location: erreur_login.html');
+}
+
+$conn->close();
+?>
+
+logout.php: <?php
+$servername = "localhost";
+$username = "root";
+$password = "";
+$dbname = "recrutement";
+
+// Create connection
+$conn = new mysqli($servername, $username, $password, $dbname);
+
+// Check connection
+if ($conn->connect_error) {
+  die("Connection failed: " . $conn->connect_error);
+}
+
+// SQL to truncate table
+$sql = "TRUNCATE TABLE temporary_recruters";
+
+if ($conn->query($sql) === TRUE) {
+  echo "Table temporary_recruters truncated successfully";
+} else {
+  echo "Error truncating table: " . $conn->error;
+}
+
+$conn->close();
+
+// Redirect to a specific page after truncating the table
+header('Location: login.html'); // Adjust the location as needed
+exit();
+?>
+
+logout_candidat.php: <?php
+// Start or resume a session
+session_start();
+
+// Database connection variables
+$servername = "localhost";
+$username = "root"; // Your DB username
+$password = ""; // Your DB password
+$dbname = "RECRUTEMENT"; // Your database name
+
+// Create connection
+$conn = new mysqli($servername, $username, $password, $dbname);
+
+// Check connection
+if ($conn->connect_error) {
+    die("Connection failed: " . $conn->connect_error);
+}
+
+// SQL to truncate table
+$sql = "TRUNCATE TABLE temporary_candidats";
+
+if ($conn->query($sql) === TRUE) {
+    echo "Table temporary_candidats truncated successfully";
+} else {
+    echo "Error truncating table: " . $conn->error;
+}
+
+// Close the connection
+$conn->close();
+
+// Optionally, clear the session
+session_unset(); // remove all session variables
+session_destroy(); // destroy the session
+
+// Redirect to a specified page after the operation
+header('Location: login.html'); // Adjust the location to your login page or wherever you wish to redirect
+exit();
+?>
+
+MAIN.html: <!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Formulaire de Connexion et Inscription</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        body {
+            background-image: url('background-image.jpg'); /* Replace 'background-image.jpg' with your image file */
+            background-size: cover;
+            background-position: center;
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="button-container">
+        <a href="login.html" class="login-button">Connexion</a>
+        <a href="signup.html" class="signup-button">Inscription</a>
+    </div>
+</body>
+</html>
+
+MENU_CANDIDAT.html: <!DOCTYPE html>
+<html>
+<head>
+    <title>Welcome Page</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: black;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            height: 100vh;
+        }
+        .menu {
+            text-align: center;
+            font-size: 30px;
+            color: yellow;
+            margin-top: auto;
+            padding: 20px 0;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: auto;
+        }
+        .button, .logout-button {
+            display: block;
+            width: 60%;
+            margin: 10px auto;
+            padding: 20px;
+            font-size: 20px;
+            text-align: center;
+            text-decoration: none;
+            color: black;
+            background-color: yellow;
+            border: none;
+            border-radius: 5px;
+            transition: background-color 0.3s, transform 0.2s;
+        }
+        .logout-button {
+            background-color: red;
+            color: white;
+        }
+        .button:hover, .logout-button:hover {
+            background-color: #ffd700;
+            transform: scale(1.05);
+        }
+        hr {
+            width: 60%;
+            border-color: yellow;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="menu">BIENVENUE</div>
+    <div class="container">
+        <a class="button" href="view_jobs.php">POSTULER CONDIDATURE</a>
+
+        <!-- Updated link for BOITE DE DISCUSSION -->
+        <a class="button" href="display_recruiters.php">BOITE DE DISCUSSION</a>
+        <hr>
+        <a class="logout-button" href="logout_candidat.php">Se déconnecter</a>
+    </div>
+    
+</body>
+</html>
+
+MENU_RECRUTEUR.html: <!DOCTYPE html>
+<html>
+<head>
+    <title>Welcome Page</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: black;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            height: 100vh;
+        }
+        .menu {
+            text-align: center;
+            font-size: 30px;
+            color: yellow;
+            margin-top: auto;
+            padding: 20px 0;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: auto;
+        }
+        .button {
+            display: block;
+            width: 60%;
+            margin: 10px auto;
+            padding: 20px;
+            font-size: 20px;
+            text-align: center;
+            text-decoration: none;
+            color: black;
+            background-color: yellow;
+            border: none;
+            border-radius: 5px;
+            transition: background-color 0.3s, transform 0.2s;
+        }
+        .button:hover {
+            background-color: #ffd700;
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+<body>
+    <div class="menu">BIENVENUE</div>
+    <div class="container">
+        <a class="button" href="post_job.html">POSTULER TRAVAIL</a>
+        <a class="button" href="explore_candidates.php">EXPLORER LES CANDIDATURES DISPONIBLES</a>
+        <!-- Link to the page for displaying candidates for chat -->
+        <a class="button" href="display_candidates.php">BOITE DE DISCUSSION</a>
+        <hr style="width: 60%; border-color: yellow; margin-top: 20px;">
+        <a class="button" href="logout.php" style="background-color: red; color: white;">Se déconnecter</a>
+    </div>
+</body>
+</html>
+
+postuler.html: <!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="styles_postuler.css">
+    <title>Créez un CV</title>
+</head>
+<body>
+    <header>
+        <h1>Créez un CV</h1>
+    </header>
+    <main>
+        <section id="cv-upload">
+            <h2>Telecharger votre CV</h2>
+            <label for="file-upload">Choisir un fichier</label>
+            <input type="file" id="file-upload" accept=".doc, .docx, .pdf">
+        </section>
+        <section id="skills-manual">
+            <h2>Entrez vos compétences manuellement</h2>
+            <form id="skills-form">
+                <label for="nom">Nom :</label>
+                <input type="text" id="nom" required>
+                <br><br>
+                <label for="email">E-mail :</label>
+                <input type="email" id="email" required>
+                <br><br>
+                <label for="competences">Compétences :</label>
+                <textarea id="competences" rows="4" required></textarea>
+                <br><br>
+                <button type="submit">Créer un CV</button>
+            </form>
+        </section>
+    </main>
+    <footer>
+        <p>&copy; 2022 Créez un CV</p>
+    </footer>
+    <script src="script.js"></script>
+</body>
+</html>
+postuler.php: <?php
+// Connect to the database
+$conn = new mysqli("localhost", "root", "", "RECRUTEMENT");
+if ($conn->connect_error) {
+    die("Connection failed: " . $conn->connect_error);
+}
+
+// Fetch the first candidate's email from temporary_candidats table as an example
+$sql = "SELECT email FROM temporary_candidats LIMIT 1";
+$result = $conn->query($sql);
+if ($result->num_rows > 0) {
+    $row = $result->fetch_assoc();
+    $candidateEmail = $row['email'];
+} else {
+    die("No candidate found in temporary_candidats.");
+}
+
+$jobId = $_GET['job_id'] ?? null;
+$recruteurEmail = $_GET['recruteur_email'] ?? null;
+
+$message = "";
+
+// Check if we have all necessary information
+if ($jobId && $recruteurEmail) {
+    try {
+        // Insert into candidatures table
+        $stmt = $conn->prepare("INSERT INTO candidatures (candidat, recruteur) VALUES (?, ?)");
+        $stmt->bind_param("ss", $candidateEmail, $recruteurEmail);
+        $stmt->execute();
+
+        $message = "Candidature réussie.";
+    } catch (mysqli_sql_exception $e) {
+        // Check for duplicate entry error code
+        if ($e->getCode() === 1062) {
+            $message = "Vous avez déjà postulé à cette offre.";
+        } else {
+            $message = "Erreur lors de la candidature: " . $e->getMessage();
+        }
+    }
+} else {
+    $message = "Informations manquantes pour la candidature.";
+}
+
+$conn->close();
+?>
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Status de la Candidature</title>
+    <style>
+        /* Style definitions as provided in the previous response */
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .message-container {
+            background-color: #fff;
+            border: 1px solid #ddd;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        .message {
+            font-size: 20px;
+            margin-bottom: 20px;
+        }
+        .btn {
+            display: inline-block;
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .btn:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="message-container">
+        <p class="message"><?= htmlspecialchars($message) ?></p>
+        <button class="btn" onclick="window.history.back();">Précédent</button>
+    </div>
+</body>
+</html>
+
+postuler_candidature.html: 
+post_job.html: <!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Postuler Travail</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background: linear-gradient(#141e30, #243b55); /* Gradient background */
+            color: #ffffff;
+            height: auto; /* Allow the body to expand as needed */
+            min-height: 100vh; /* Ensure it covers at least the full viewport height */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px; /* Add padding to prevent content from touching the edges */
+        }
+
+        form {
+            width: 100%;
+            max-width: 400px; /* Adjust as necessary */
+            padding: 20px;
+            background: rgba(0,0,0,.7);
+            box-shadow: 0 15px 25px rgba(0,0,0,.6);
+            border-radius: 10px;
+            margin: auto; /* Center the form vertically if shorter than viewport */
+        }
+
+        h2 {
+            margin: 0 0 20px;
+            color: #fff;
+            text-align: center;
+        }
+
+        label {
+            margin-bottom: 10px;
+            display: block;
+        }
+
+        input[type="text"],
+        input[type="email"],
+        input[type="password"],
+        input[type="file"],
+        textarea, select {
+            width: calc(100% - 20px); /* Adjust width to prevent overflow */
+            padding: 10px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+            background-color: #FFF;
+            color: #000; /* Ensure text is visible */
+            display: block;
+        }
+
+        input[type="submit"] {
+            background-color: #03e9f4;
+            color: #000;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        input[type="submit"]:hover {
+            background-color: #029dbb;
+        }
+    </style>
+    <script>
+        function validateFileSize() {
+            var fileInput = document.getElementById('pic');
+            var fileSize = fileInput.files[0].size; // Size in bytes
+            var maxSize = 500000; // Maximum file size (e.g., 500 KB)
+
+            if (fileSize > maxSize) {
+                alert("Le fichier est trop grand. La taille maximale autorisée est de 500 KB.");
+                return false;
+            }
+            return true;
+        }
+    </script>
+</head>
+<body>
+    <form action="submit_job.php" method="post" enctype="multipart/form-data" onsubmit="return validateFileSize()">
+        <h2>Postuler une offre d'emploi</h2>
+        
+        <label for="titre">Titre du poste:</label>
+        <input type="text" id="titre" name="titre" required>
+        
+        <label for="description">Description:</label>
+        <textarea id="description" name="description" required></textarea>
+        
+        <label for="city">Ville:</label>
+        <input type="text" id="city" name="city" required>
+        
+        <label for="domain">Domaine:</label>
+        <input type="text" id="domain" name="domain" required>
+        
+        <label for="level">Niveau d'étude requis:</label>
+        <select id="level" name="level" required>
+            <option value="">--Sélectionnez--</option>
+            <option value="Bac">Bac</option>
+            <option value="Bac+2">Bac+2</option>
+            <option value="Licence">Licence</option>
+            <option value="Master">Master</option>
+            <option value="Doctorat">Doctorat</option>
+        </select>
+
+        <label for="email">Email:</label>
+        <input type="email" id="email" name="email" required>
+        
+        <label for="pic">Photo du poste (obligatoire):</label>
+        <input type="file" id="pic" name="pic" accept="image/*" required>
+        
+        <input type="submit" value="Publier l'offre">
+    </form>
+</body>
+</html>
+
+recruter.html: <!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="styles_recruter.css">
+    <title>CVs Triés</title>
+</head>
+<body>
+    <header>
+        <h1>CVs Triés</h1>
+    </header>
+    <main>
+        <div id="cv-list"></div>
+    </main>
+    <footer>
+        <p>&copy; 2022 CVs Triés</p>
+    </footer>
+    <script src="script_recruter.js"></script>
+</body>
+</html>
+save_message.php: <?php
+include 'db.php'; // Include your database connection
+
+// Fetch the most recent candidate's email from temporary_candidates table
+$emailQuery = "SELECT email FROM temporary_candidats ORDER BY id DESC LIMIT 1";
+$emailResult = $conn->query($emailQuery);
+
+if ($emailResult->num_rows > 0) {
+    $row = $emailResult->fetch_assoc();
+    $candidateEmail = $row['email']; // Use this email as the sender's email
+} else {
+    showMessage("ERREUR", false);
+    exit;
+}
+
+// Retrieve the recruiter's email and the message from the form submission
+$recruiterEmail = $_POST['recruiter_email'] ?? '';
+$message = $_POST['message'] ?? '';
+
+// Prepare and execute the insert operation for the message
+$stmt = $conn->prepare("INSERT INTO messages (sender_mail, receiver_email, message, timestamp) VALUES (?, ?, ?, NOW())");
+$stmt->bind_param("sss", $candidateEmail, $recruiterEmail, $message);
+
+if ($stmt->execute()) {
+    showMessage("Votre message a été envoyé avec succès", true);
+} else {
+    showMessage("Error: " . $stmt->error, false);
+}
+
+$stmt->close();
+$conn->close();
+
+function showMessage($message, $isSuccess) {
+    $color = $isSuccess ? "#4CAF50" : "#f44336"; // Green for success, red for error
+    echo "<!DOCTYPE html>
+    <html lang='en'>
+    <head>
+    <meta charset='UTF-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+    <title>Message Status</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+        .message-box {
+            text-align: center;
+            padding: 20px;
+            border-radius: 5px;
+            background-color: $color;
+            color: white;
+            width: 90%;
+            max-width: 400px;
+        }
+        .btn-retour {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 10px 20px;
+            background-color: #008CBA;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+        }
+    </style>
+    </head>
+    <body>
+        <div class='message-box'>
+            <p>$message</p>
+            <a href='javascript:history.back()' class='btn-retour'>Retour</a>
+        </div>
+    </body>
+    </html>";
+}
+?>
+
+send_message.php: <!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Send Message</title>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        background-color: #f0f0f0;
+        padding: 20px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+    }
+    .message-form {
+        background: #ffffff;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        width: 100%;
+        max-width: 400px;
+    }
+    .form-group {
+        margin-bottom: 15px;
+    }
+    .form-group label {
+        display: block;
+        margin-bottom: 5px;
+    }
+    .form-group input, .form-group textarea, .form-group button {
+        width: 100%;
+        padding: 10px;
+        margin-top: 5px;
+        border-radius: 4px;
+        border: 1px solid #ddd;
+    }
+    .form-group button {
+        background-color: #0056b3;
+        color: white;
+        border: none;
+        cursor: pointer;
+        margin-top: 20px;
+    }
+    .form-group button:hover {
+        background-color: #004494;
+    }
+</style>
+</head>
+<body>
+
+<div class="message-form">
+    <form action="save_message.php" method="post">
+        <div class="form-group">
+            <label for="recruiter_email">Recruiter Email:</label>
+            <input type="email" id="recruiter_email" name="recruiter_email" required>
+        </div>
+        <div class="form-group">
+            <label for="message">Message:</label>
+            <textarea id="message" name="message" required></textarea>
+        </div>
+        <div class="form-group">
+            <button type="submit">Send Message</button>
+        </div>
+    </form>
+</div>
+
+</body>
+</html>
+
+send_message_by_recruiter.php: <?php
+// Connect to the database
+$conn = new mysqli("localhost", "root", "", "RECRUTEMENT");
+if ($conn->connect_error) {
+    die("Connection failed: " . $conn->connect_error);
+}
+
+// Fetch the most recent recruiter's email from the temporary_recruteurs table
+$recruiterQuery = "SELECT email FROM temporary_recruters ORDER BY id DESC LIMIT 1";
+$recruiterResult = $conn->query($recruiterQuery);
+
+if ($recruiterResult->num_rows > 0) {
+    $recruiterRow = $recruiterResult->fetch_assoc();
+    $recruiterEmail = $recruiterRow['email'];
+} else {
+    die("Recruiter email not found.");
+}
+
+// Assume the candidate's email is passed as a query parameter
+$candidateEmail = isset($_GET['candidate_email']) ? $_GET['candidate_email'] : '';
+
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && !empty($candidateEmail) && !empty($recruiterEmail)) {
+    // Retrieve the message from the form submission
+    $message = $conn->real_escape_string($_POST['message']);
+
+    // Insert the message into the messages table
+    $insertMessageQuery = "INSERT INTO messages (sender_mail, receiver_email, message) VALUES (?, ?, ?)";
+    $stmt = $conn->prepare($insertMessageQuery);
+    $stmt->bind_param("sss", $recruiterEmail, $candidateEmail, $message);
+    
+    if ($stmt->execute()) {
+        // Message sent successfully, show styled message
+        echo '<!DOCTYPE html>
+        <html lang="fr">
+        <head>
+            <meta charset="UTF-8">
+            <title>Message Envoyé</title>
+            <style>
+                body {
+                    font-family: Arial, sans-serif;
+                    background-color: #f4f4f4;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    height: 100vh;
+                    margin: 0;
+                }
+                .message-box {
+                    background: #fff;
+                    padding: 20px;
+                    border-radius: 8px;
+                    box-shadow: 0 2px 4px rgba(0,0,0,.2);
+                    text-align: center;
+                }
+                .btn-retour {
+                    display: inline-block;
+                    margin-top: 20px;
+                    padding: 10px 20px;
+                    background-color: #007bff;
+                    color: white;
+                    text-decoration: none;
+                    border-radius: 4px;
+                    cursor: pointer;
+                }
+                .btn-retour:hover {
+                    background-color: #0056b3;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="message-box">
+                <p>Message envoyé avec succès!</p>
+                <a href="javascript:history.back()" class="btn-retour">Retour</a>
+            </div>
+        </body>
+        </html>';
+    } else {
+        echo "Error sending message: " . $conn->error;
+    }
+    $stmt->close();
+} else {
+    // Form for sending a message
+    ?>
+    <!DOCTYPE html>
+    <html lang="fr">
+    <head>
+        <meta charset="UTF-8">
+        <title>Envoyer Message</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                background-color: #f4f4f4;
+                padding: 20px;
+                display: flex;
+                justify-content: center;
+            }
+            form {
+                width: 100%;
+                max-width: 500px;
+            }
+            textarea {
+                width: 100%;
+                height: 100px;
+                margin-bottom: 10px;
+            }
+            input[type="submit"] {
+                padding: 10px 20px;
+                background-color: #007bff;
+                color: white;
+                border: none;
+                cursor: pointer;
+            }
+        </style>
+    </head>
+    <body>
+        <form method="POST">
+            <textarea name="message" placeholder="Tapez votre message ici"></textarea><br>
+            <input type="submit" value="Envoyer le message">
+        </form>
+    </body>
+    </html>
+    <?php
+}
+$conn->close();
+?>
+
+send_message_form.php: <?php
+// send_message_form.php
+$recruiterEmail = $_GET['recruiter_email'] ?? '';
+$jobId = $_GET['job_id'] ?? '';
+
+// Simple form for candidate to enter message
+echo '<form action="save_message.php" method="post">
+        <input type="hidden" name="recruiter_email" value="' . htmlspecialchars($recruiterEmail) . '">
+        <input type="hidden" name="job_id" value="' . htmlspecialchars($jobId) . '">
+        <textarea name="message" required placeholder="Type your message here..."></textarea>
+        <input type="submit" value="Send Message">
+      </form>';
+?>
+
+sign_up_candidat.html: <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Inscription Candidat</title>
+  <style>
+    body {
+      background-color: #333;
+      color: white;
+      font-family: 'Arial', sans-serif;
+      margin: 0;
+      padding: 20px;
+    }
+    h2 {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+    form {
+      max-width: 600px;
+      margin: auto;
+      padding: 20px;
+      background-color: #444;
+      border-radius: 8px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+    div {
+      margin-bottom: 15px;
+      position: relative;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+    }
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    input[type="file"],
+    textarea {
+      width: calc(100% - 20px);
+      padding: 10px;
+      margin-bottom: 10px;
+      border-radius: 5px;
+      border: 1px solid #555;
+      background-color: #222;
+      color: white;
+      outline: none;
+    }
+    input[type="submit"] {
+      width: 100%;
+      padding: 10px;
+      border-radius: 5px;
+      border: none;
+      background-color: #007bff;
+      color: white;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+    input[type="submit"]:hover {
+      background-color: #0056b3;
+    }
+    .custom-file-upload {
+      background-color: #007bff;
+      color: white;
+      padding: 10px 20px;
+      border-radius: 5px;
+      border: none;
+      display: inline-block;
+      cursor: pointer;
+    }
+    input[type="file"] {
+      display: none;
+    }
+    .file-upload-status {
+      display: inline-block;
+      vertical-align: top;
+      padding-top: 12px;
+    }
+  </style>
+</head>
+<body>
+
+<h2>Inscription Candidat</h2>
+
+<form id="candidateForm" action="submit_candidate.php" method="post" enctype="multipart/form-data">
+  <div><label for="first_name">Prénom:</label><input type="text" id="first_name" name="first_name"></div>
+  <div><label for="last_name">Nom:</label><input type="text" id="last_name" name="last_name"></div>
+  <div><label for="phone">Téléphone:</label><input type="text" id="phone" name="phone"></div>
+  <div><label for="email">Email:</label><input type="email" id="email" name="email"></div>
+  <div><label for="country">Pays:</label><input type="text" id="country" name="country"></div>
+  <div><label for="city">Ville:</label><input type="text" id="city" name="city"></div>
+  <div><label for="diploma">Niveau d'&eacute;tude:</label><input type="text" id="diploma" name="diploma"></div>
+  <div><label for="institution">Établissement du dernier diplôme:</label><input type="text" id="institution" name="institution"></div>
+  <div><label for="experience">Années d'expérience:</label><input type="text" id="experience" name="experience"></div>
+  <div><label for="last_job">Domaine:</label><input type="text" id="last_job" name="last_job"></div>
+  <div><label for="mdp">Mot de passe:</label><input type="password" id="mdp" name="mdp"></div>
+  <div><label for="description">Description:</label><textarea id="description" name="description" rows="4"></textarea></div>
+  <div><label class="custom-file-upload"><input type="file" id="image" name="image">Télécharger une image</label><span class="file-upload-status"></span></div>
+  <input type="submit" value="Valider">
+</form>
+
+</body> 
+</html>
+
+sign_up_recruteur.html: <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Inscription Recruteur</title>
+  <link href="https://stackpath.bootstrapcdn.com/bootswatch/4.5.2/slate/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body {
+      background-color: #333;
+      color: white;
+      font-family: 'Arial', sans-serif;
+      margin: 0;
+      padding: 20px;
+    }
+    h2 {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+    form {
+      max-width: 600px;
+      margin: auto;
+      padding: 20px;
+      background-color: #444;
+      border-radius: 8px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+    div {
+      margin-bottom: 15px;
+      position: relative;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+    }
+    input[type="text"],
+    input[type="email"],
+    input[type="password"] {
+      width: calc(100% - 20px);
+      padding: 10px;
+      margin-bottom: 10px;
+      border-radius: 5px;
+      border: 1px solid #555;
+      background-color: #222;
+      color: white;
+      outline: none;
+    }
+    input[type="submit"] {
+      width: 100%;
+      padding: 10px;
+      border-radius: 5px;
+      border: none;
+      background-color: #007bff;
+      color: white;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+    input[type="submit"]:hover {
+      background-color: #0056b3;
+    }
+  </style>
+</head>
+<body>
+
+<h2>Inscription Recruteur</h2>
+
+<form action="submit_recruteur.php" method="post">
+  <div><label for="first_name">Prénom:</label><input type="text" id="first_name" name="first_name"></div>
+  <div><label for="last_name">Nom:</label><input type="text" id="last_name" name="last_name"></div>
+  <div><label for="phone">Téléphone:</label><input type="text" id="phone" name="phone"></div>
+  <div><label for="email">Email:</label><input type="email" id="email" name="email"></div>
+  <div><label for="country">Pays:</label><input type="text" id="country" name="country"></div>
+  <div><label for="city">Ville:</label><input type="text" id="city" name="city"></div>
+  <div><label for="mdp">Mot de passe:</label><input type="password" id="mdp" name="mdp"></div>
+  <input type="submit" value="Valider">
+</form>
+
+</body>
+</html>
+
+styles_index.css: /* Import des polices */
+@import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
+
+/* Réinitialisation des styles par défaut */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* Styles généraux */
+body {
+    font-family: 'Roboto', sans-serif;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    font-size: 16px;
+    line-height: 1.6;
+    color: #333;
+    background-color: #f0f8ff; /* Bleu clair */
+}
+
+header, footer {
+    background-color: #333;
+    color: #fff;
+    text-align: center;
+    padding: 20px;
+}
+
+main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+}
+
+section {
+    margin: 20px 0;
+    background-color: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+section h2 {
+    font-family: 'Open Sans', sans-serif;
+    text-align: center;
+    color: #333;
+    margin-bottom: 20px;
+}
+
+/* Styles pour les formulaires */
+input, textarea, button {
+    width: 100%;
+    padding: 12px;
+    border-radius: 5px;
+    border: 1px solid #6495ed; /* Bleu acier */
+    margin-bottom: 16px;
+    transition: border-color 0.3s ease;
+}
+
+input[type='submit'], button {
+    background-color: #4169e1; /* Bleu royal */
+    color: #fff;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+input[type='submit']:hover, button:hover {
+    background-color: #1e90ff; /* Bleu dodger */
+}
+
+/* Ajout de styles interactifs pour les formulaires */
+input:focus, textarea:focus {
+    outline: none;
+    border-color: #4169e1; /* Bleu acier */
+}
+
+/* Style pour les liens de navigation */
+.nav {
+    background-color: #333;
+    padding: 10px;
+}
+
+.nav-link {
+    color: #fff;
+    text-decoration: none;
+    padding: 10px;
+    border-radius: 5px;
+    transition: background-color 0.3s ease;
+}
+
+.nav-link:hover {
+    background-color: #555;
+}
+styles_login.css: body {
+    font-family: Arial, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+    background-color: #f4f4f4;
+}
+
+.login-container {
+    background-color: #fff;
+    padding: 20px;
+    border-radius: 5px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+h2 {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+form {
+    display: flex;
+    flex-direction: column;
+}
+
+.input-group {
+    margin-bottom: 15px;
+}
+
+label {
+    font-weight: bold;
+}
+
+input {
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+}
+
+button {
+    padding: 10px;
+    border: none;
+    border-radius: 5px;
+    background-color: #4CAF50;
+    color: #fff;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+button:hover {
+    background-color: #45a049;
+}
+
+styles_postuler.css: /* Import des polices */
+@import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
+
+/* Réinitialisation des styles par défaut */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* Styles généraux */
+body {
+    font-family: 'Roboto', sans-serif;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    font-size: 16px;
+    line-height: 1.6;
+    color: #333;
+    background-color: #f9ebf9; /* Rose pâle */
+}
+
+header, footer {
+    background-color: #3f51b5; /* Indigo */
+    color: #fff;
+    text-align: center;
+    padding: 20px;
+}
+
+main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+    background-color: #e6f7ff; /* Bleu clair */
+}
+
+section {
+    margin: 20px 0;
+    background-color: #ffc0cb; /* Rose clair */
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+section h2 {
+    font-family: 'Open Sans', sans-serif;
+    text-align: center;
+    color: #333;
+    margin-bottom: 20px;
+}
+
+/* Styles pour les formulaires */
+input, textarea, button {
+    width: 100%;
+    padding: 12px;
+    border-radius: 5px;
+    border: 1px solid #3f51b5; /* Indigo */
+    margin-bottom: 16px;
+    transition: border-color 0.3s ease;
+}
+
+input[type='submit'], button {
+    background-color: #e91e63; /* Rose profond */
+    color: #fff;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+input[type='submit']:hover, button:hover {
+    background-color: #c2185b; /* Rose foncé */
+}
+
+/* Ajout de styles interactifs pour les formulaires */
+input:focus, textarea:focus {
+    outline: none;
+    border-color: #e91e63; /* Rose profond */
+}
+
+/* Style pour les liens de navigation */
+.nav {
+    background-color: #3f51b5; /* Indigo */
+    padding: 10px;
+}
+
+.nav-link {
+    color: #fff;
+    text-decoration: none;
+    padding: 10px;
+    border-radius: 5px;
+    transition: background-color 0.3s ease;
+}
+
+.nav-link:hover {
+    background-color: #303f9f; /* Indigo foncé */
+}
+styles_recruter.css: body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+}
+
+header, footer {
+    background-color: #333;
+    color: white;
+    text-align: center;
+    padding: 10px;
+}
+
+header h1, footer p {
+    margin: 0;
+}
+
+main {
+    margin: 20px;
+}
+
+#cv-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.cv-item {
+    background-color: white;
+    border: 1px solid #ccc;
+    padding: 10px;
+    margin-bottom: 10px;
+}
+
+.cv-item h2, .cv-item p {
+    margin: 0;
+}
+styles_sign_up_candidat.css:  body {
+    font-family: Arial, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+    background-color: #f4f4f4;
+}
+
+.signup-container {
+    background-color: #fff;
+    padding: 20px;
+    border-radius: 5px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+h2 {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+form {
+    display: flex;
+    flex-direction: column;
+}
+
+.input-group {
+    margin-bottom: 15px;
+}
+
+.radio-group {
+    display: flex;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.radio-group input {
+    margin-right: 5px;
+}
+
+label {
+    font-weight: bold;
+}
+
+input, textarea {
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+}
+
+button {
+    padding: 10px;
+    border: none;
+    border-radius: 5px;
+    background-color: #4CAF50;
+    color: #fff;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+button:hover {
+    background-color: #45a049;
+}
+styles_sign_up_recruteur.css: body {
+    font-family: Arial, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+    background-color: #f4f4f4;
+}
+
+.signup-container {
+    background-color: #fff;
+    padding: 20px;
+    border-radius: 5px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+h2 {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+form {
+    display: flex;
+    flex-direction: column;
+}
+
+.input-group {
+    margin-bottom: 15px;
+}
+
+.radio-group {
+    display: flex;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.radio-group input {
+    margin-right: 5px;
+}
+
+label {
+    font-weight: bold;
+}
+
+input, textarea {
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+}
+
+button {
+    padding: 10px;
+    border: none;
+    border-radius: 5px;
+    background-color: #4CAF50;
+    color: #fff;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+button:hover {
+    background-color: #45a049;
+}
+
+submit_candidate.php: <?php
+$conn = new mysqli("localhost", "root", "", "RECRUTEMENT");
+if ($conn->connect_error) {
+    die("Connection failed: " . $conn->connect_error);
+}
+$email = $conn->real_escape_string($_POST['email']);
+$emailCheckQuery = "SELECT email FROM candidates WHERE email = ?";
+$stmt = $conn->prepare($emailCheckQuery);
+$stmt->bind_param("s", $email);
+$stmt->execute();
+$result = $stmt->get_result();
+if($result->num_rows > 0) {
+    header('Location: erreur_sign_up.html');
+    exit();
+}
+$first_name = $conn->real_escape_string($_POST['first_name']);
+$last_name = $conn->real_escape_string($_POST['last_name']);
+$phone = $conn->real_escape_string($_POST['phone']);
+$country = $conn->real_escape_string($_POST['country']);
+$city = $conn->real_escape_string($_POST['city']);
+$diploma = $conn->real_escape_string($_POST['diploma']);
+$institution = $conn->real_escape_string($_POST['institution']);
+$experience = is_numeric($_POST['experience']) ? $_POST['experience'] : 0;
+$last_job = $conn->real_escape_string($_POST['last_job']);
+$mdp = $conn->real_escape_string($_POST['mdp']);
+$description = $conn->real_escape_string($_POST['description']);
+$image_path = "uploads/" . basename($_FILES["image"]["name"]);
+$sql = $conn->prepare("INSERT INTO candidates (first_name, last_name, phone, email, country, city, diploma, institution, experience, domaine, image_path, description, mdp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+$sql->bind_param("sssssssisssss", $first_name, $last_name, $phone, $email, $country, $city, $diploma, $institution, $experience, $last_job, $image_path, $description, $mdp);
+if($sql->execute()) {
+    $target_dir = "uploads/";
+    $target_file = $target_dir . basename($_FILES["image"]["name"]);
+    if(move_uploaded_file($_FILES["image"]["tmp_name"], $target_file)) {
+        header('Location: succes_sign_up.html');
+    } else {
+        header('Location: erreur_sign_up.html');
+    }
+} else {
+    header('Location: erreur_sign_up.html');
+}
+$stmt->close();
+$sql->close();
+$conn->close();
+exit();
+?>
+
+submit_job.php: <?php
+// Enable error reporting for debugging
+ini_set('display_errors', 1);
+error_reporting(E_ALL);
+
+// Database connection parameters
+$servername = "localhost";
+$username = "root";
+$password = "";
+$dbname = "RECRUTEMENT";
+
+// Create connection
+$conn = new mysqli($servername, $username, $password, $dbname);
+
+// Check connection
+if ($conn->connect_error) {
+    die("Connection failed: " . $conn->connect_error);
+}
+
+// Assume form fields are properly set
+$titre = $conn->real_escape_string($_POST['titre']);
+$description = $conn->real_escape_string($_POST['description']);
+$city = $conn->real_escape_string($_POST['city']);
+$domain = $conn->real_escape_string($_POST['domain']);
+$level = $conn->real_escape_string($_POST['level']);
+$email_recruteur = $conn->real_escape_string($_POST['email']);
+
+// Handle file upload
+$target_dir = "uploads/";
+$pic = $target_dir . basename($_FILES["pic"]["name"]);
+$uploadOk = 1;
+$imageFileType = strtolower(pathinfo($pic, PATHINFO_EXTENSION));
+
+// Attempt to upload file
+if (move_uploaded_file($_FILES["pic"]["tmp_name"], $pic)) {
+    // File upload success, proceed to insert job into the database
+    $stmt = $conn->prepare("INSERT INTO emplois (titre, description, city, domain, level, email_recruteur, pic) VALUES (?, ?, ?, ?, ?, ?, ?)");
+    $stmt->bind_param("sssssss", $titre, $description, $city, $domain, $level, $email_recruteur, $pic);
+
+    if ($stmt->execute()) {
+        $message = "L'emploi a été posté avec succès";
+    } else {
+        $message = "Erreur lors de la publication de l'emploi";
+    }
+    $stmt->close();
+} else {
+    $message = "Erreur lors de l'upload de l'image";
+}
+
+$conn->close();
+?>
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Confirmation</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .message-container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 5px;
+            text-align: center;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        .btn {
+            display: inline-block;
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+        .btn:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="message-container">
+        <p><?= $message; ?></p>
+        <a href="post_job.html" class="btn">Précédent</a>
+    </div>
+</body>
+</html>
+
+submit_recruteur.php: <?php
+$conn = new mysqli("localhost", "root", "", "RECRUTEMENT");
+if ($conn->connect_error) {
+    die("Connection failed: " . $conn->connect_error);
+}
+$email = $conn->real_escape_string($_POST['email']);
+$emailCheckQuery = "SELECT email FROM recruteurs WHERE email = ?";
+$stmt = $conn->prepare($emailCheckQuery);
+$stmt->bind_param("s", $email);
+$stmt->execute();
+$result = $stmt->get_result();
+if($result->num_rows > 0) {
+    header('Location: erreur_sign_up.html');
+    exit();
+}
+$first_name = $conn->real_escape_string($_POST['first_name']);
+$last_name = $conn->real_escape_string($_POST['last_name']);
+$phone = $conn->real_escape_string($_POST['phone']);
+$country = $conn->real_escape_string($_POST['country']);
+$city = $conn->real_escape_string($_POST['city']);
+$mdp = $conn->real_escape_string($_POST['mdp']);
+$sql = $conn->prepare("INSERT INTO recruteurs (first_name, last_name, phone, email, country, city, mdp) VALUES (?, ?, ?, ?, ?, ?, ?)");
+$sql->bind_param("sssssss", $first_name, $last_name, $phone, $email, $country, $city, $mdp);
+if($sql->execute()) {
+    header('Location: succes_sign_up.html');
+} else {
+    header('Location: erreur_sign_up.html');
+}
+$stmt->close();
+$sql->close();
+$conn->close();
+exit();
+?>
+
+succes_sign_up.html: <!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title></title>
+<link rel="stylesheet" href="gg.css">
+</head>
+<body>
+  <div class="error-container">
+    <h1>succ&egrave;s</h1>
+    <p>Votre inscription a &eacute;t&eacute;e prise en consid&eacute;ration.</p>
+    <p>Merci. Veuillez aller vers la page d'acceuil et vous connecter</p>
+   
+    <a href="index.html">Retourner à la page d'accueil</a>
+  </div>
+</body>
+</html>
+TABLE.sql: CREATE DATABASE cv_database;
+
+USE cv_database;
+
+CREATE TABLE cv (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nom VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    competences TEXT NOT NULL,
+    score INT NOT NULL
+);
+travaux.html: 
+travaux.php: <?php
+session_start(); // Start a new session or resume the current session
+
+// Connection to the database
+$conn = new mysqli("localhost", "root", "", "RECRUTEMENT");
+
+if ($conn->connect_error) {
+    die("Connection failed: " . $conn->connect_error);
+}
+
+
+
+$userEmail = $_SESSION['user_email'];
+
+// Handle job application submission
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['emploiId'])) {
+    $emploiId = $_POST['emploiId'];
+    // Check if the application already exists
+    $checkApplication = $conn->prepare("SELECT * FROM candidatures WHERE emploiId = ? AND candidat = ?");
+    $checkApplication->bind_param("is", $emploiId, $userEmail);
+    $checkApplication->execute();
+    $applicationResult = $checkApplication->get_result();
+    if ($applicationResult->num_rows == 0) {
+        // Insert new application
+        $insertApplication = $conn->prepare("INSERT INTO candidatures (emploiId, candidat) VALUES (?, ?)");
+        $insertApplication->bind_param("is", $emploiId, $userEmail);
+        if (!$insertApplication->execute()) {
+            echo "Error applying for job: " . $conn->error;
+        }
+    }
+    // Redirect back to travaux.php to avoid form re-submission issues
+    header("Location: travaux.php");
+    exit();
+}
+
+// Fetching job posts from the database
+$sql = "SELECT * FROM emplois";
+$result = $conn->query($sql);
+?>
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome Page</title>
+    <!-- Include your CSS here -->
+</head>
+<body>
+    <h1>Liste des offres d'emploi</h1>
+    <div class="container">
+        <?php
+        if ($result->num_rows > 0) {
+            while($row = $result->fetch_assoc()) {
+                // Re-check if the candidate has already applied for this job (needed after potential POST request)
+                $checkApplication->execute();
+                $applicationResult = $checkApplication->get_result();
+                $hasApplied = $applicationResult->num_rows > 0;
+                
+                echo "<div class='offre'>";
+                echo "<img src='" . $row["pic"] . "' alt='Image'>";
+                echo "<h2>" . $row["titre"] . "</h2>";
+                echo "<p>" . $row["description"] . "</p>";
+                if (!$hasApplied) {
+                    echo "<form method='post'>";
+                    echo "<input type='hidden' name='emploiId' value='" . $row["id"] . "'>";
+                    echo "<button type='submit'>Postuler</button>";
+                    echo "</form>";
+                } else {
+                    echo "<button disabled>Already Applied</button>";
+                }
+                echo "<button onclick=\"window.location.href='chat.html'\">Chatter</button>";
+                echo "</div>";
+            }
+        } else {
+            echo "No job posts found.";
+        }
+        $conn->close();
+        ?>
+    </div>
+</body>
+</html>
+
+vider_temporary_candidats.php: 
+vider_temporary_recruteurs.php: 
+view_jobs.php: <?php
+// Connect to the database
+$conn = new mysqli("localhost", "root", "", "RECRUTEMENT");
+if ($conn->connect_error) {
+    die("Connection failed: " . $conn->connect_error);
+}
+
+$domaine = isset($_POST['domaine']) ? $conn->real_escape_string($_POST['domaine']) : '';
+$niveau = isset($_POST['niveau']) ? $conn->real_escape_string($_POST['niveau']) : '';
+$ville = isset($_POST['ville']) ? $conn->real_escape_string($_POST['ville']) : '';
+
+$query = "SELECT * FROM emplois WHERE (domain LIKE '%$domaine%' OR ? = '') AND (level LIKE '%$niveau%' OR ? = '') AND (city LIKE '%$ville%' OR ? = '')";
+$stmt = $conn->prepare($query);
+$stmt->bind_param("sss", $domaine, $niveau, $ville);
+$stmt->execute();
+$result = $stmt->get_result();
+?>
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Voir les emplois</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            padding: 20px;
+        }
+        .job {
+            background-color: #fff;
+            border: 1px solid #ddd;
+            margin-bottom: 20px;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            overflow: auto;
+        }
+        .job-image img {
+            width: 150px;
+            height: 150px;
+            float: left;
+            margin-right: 10px;
+        }
+        .job-details {
+            float: left;
+        }
+        .btn {
+            padding: 5px 15px;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            margin-right: 5px;
+            transition: background-color 0.3s ease;
+        }
+        .btn:hover {
+            background-color: #0056b3;
+        }
+        input[type="text"], select, input[type="submit"] {
+            padding: 5px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+        }
+        input[type="submit"] {
+            cursor: pointer;
+            background-color: #007bff;
+            color: white;
+            border: none;
+        }
+        input[type="submit"]:hover {
+            background-color: #0056b3;
+        }
+        fieldset {
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin-bottom: 20px;
+        }
+        legend {
+            padding: 0 10px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <form class="filter-form" action="view_jobs.php" method="post">
+        <fieldset>
+            <legend>Filtrer les emplois</legend>
+            <label for="domaine">Domaine:</label>
+            <input type="text" id="domaine" name="domaine" value="<?= htmlspecialchars($domaine) ?>">
+            
+            <label for="niveau">Niveau:</label>
+            <input type="text" id="niveau" name="niveau" value="<?= htmlspecialchars($niveau) ?>">
+
+            <label for="ville">Ville:</label>
+            <input type="text" id="ville" name="ville" value="<?= htmlspecialchars($ville) ?>">
+
+            <input type="submit" value="Rechercher">
+        </fieldset>
+    </form>
+
+    <?php if ($result->num_rows > 0): ?>
+        <?php while($row = $result->fetch_assoc()): ?>
+            <div class="job">
+                <div class="job-image">
+                    <img src="<?= htmlspecialchars($row["pic"]) ?>" alt="Job Image">
+                </div>
+                <div class="job-details">
+                    <h3><?= htmlspecialchars($row["titre"]) ?></h3>
+                    <p><?= nl2br(htmlspecialchars($row["description"])) ?></p>
+                    <p>Niveau d'étude requis: <?= htmlspecialchars($row["level"]) ?></p>
+                    <p>Domaine: <?= htmlspecialchars($row["domain"]) ?></p>
+                    <p>Ville: <?= htmlspecialchars($row["city"]) ?></p>
+                    <p>Email du recruteur: <?= htmlspecialchars($row["email_recruteur"]) ?></p>
+                    <a href="initiate_chat.php?recruiter_email=<?= urlencode($row['email_recruteur']) ?>" class="btn">Chatter</a>
+                    <a href="postuler.php?job_id=<?= $row['id'] ?>&recruteur_email=<?= $row['email_recruteur'] ?>" class="btn">Postuler</a>
+                </div>
+            </div>
+        <?php endwhile; ?>
+    <?php else: ?>
+        <p>Aucune offre d'emploi correspondante trouvée.</p>
+    <?php endif; ?>
+    <?php $conn->close(); ?>
+</body>
+</html>
+

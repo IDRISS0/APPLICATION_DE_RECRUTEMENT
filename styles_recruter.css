@@ -1,0 +1,36 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+}
+
+header, footer {
+    background-color: #333;
+    color: white;
+    text-align: center;
+    padding: 10px;
+}
+
+header h1, footer p {
+    margin: 0;
+}
+
+main {
+    margin: 20px;
+}
+
+#cv-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.cv-item {
+    background-color: white;
+    border: 1px solid #ccc;
+    padding: 10px;
+    margin-bottom: 10px;
+}
+
+.cv-item h2, .cv-item p {
+    margin: 0;
+}
